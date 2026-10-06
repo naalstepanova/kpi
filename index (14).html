@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>KPIboard demo</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Brand book: warm white 60 / ink 25 / orange 10 / pink 5 */
+  --orange:#FF743D;--pink:#F5A6C8;--ink-c:#272334;--warm:#FFF8F2;--berry:#743354;
+  --paper:#FFF8F2;--surface:#FFFFFF;--soft:#FBF3EC;--ink:#272334;--muted:#615B70;--line:#EADFD6;
+  --ok:#3E8E85;--risk:#E8892F;--behind:#C0392B;--bad:#B23A3A;--radius:8px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root{--paper:#1E1B28;--surface:#272334;--soft:#2E2A3C;--ink:#FFF8F2;--muted:#B7AFC2;--line:#3A3449;--ok:#5FB3A8;--risk:#F2A35A;--behind:#F07167;--bad:#FF8A80;color-scheme:dark}
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--paper);color:var(--ink);font-family:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:15px;line-height:1.5;font-variant-numeric:tabular-nums;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+.wrap{max-width:1240px;margin:0 auto;padding:0 20px}
+.hidden{display:none !important}
+
+/* Header */
+.top{background:var(--ink-c);color:var(--warm);position:sticky;top:0;z-index:5}
+.top .wrap{display:flex;align-items:center;gap:16px;min-height:64px;flex-wrap:wrap;padding-top:8px;padding-bottom:8px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:19px;letter-spacing:-.01em}
+.mark{width:28px;height:28px;display:grid;grid-template-columns:repeat(3,1fr);gap:3px;flex:none}
+.mark i{background:var(--warm);border-radius:2px;opacity:.25}
+.mark i:nth-child(1),.mark i:nth-child(5),.mark i:nth-child(9){background:var(--orange);opacity:1}
+.mark i:nth-child(2),.mark i:nth-child(6){background:var(--pink);opacity:1}
+.co{color:#CFC8D8;font-weight:500;font-size:14px}
+.demo-chip{font-size:12.5px;color:#CFC8D8;border:1px dashed #5A5370;border-radius:999px;padding:3px 10px}
+.persona{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:14px;color:#CFC8D8}
+.persona select{border:1px solid #5A5370;background:#332E44;color:var(--warm);border-radius:8px;padding:7px 10px;max-width:280px}
+
+/* Tabs */
+.tabs{display:flex;gap:4px;overflow-x:auto;padding-top:16px}
+.tab{border:0;background:transparent;padding:9px 14px;border-radius:8px;cursor:pointer;color:var(--muted);font-weight:500;white-space:nowrap}
+.tab:hover{background:var(--surface);color:var(--ink)}
+.tab[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:inset 0 -3px 0 var(--orange)}
+.tab svg{display:none;width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.tab .short{display:none}
+
+main{padding:24px 0 64px}
+h1{font-size:32px;line-height:1.2;margin:0 0 4px;letter-spacing:-.015em}
+h2{font-size:17px;margin:0 0 12px}
+h3{font-size:14px;margin:0 0 8px}
+.sub{color:var(--muted);margin:0 0 20px;max-width:72ch}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:20px}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.spacer{flex:1}
+.btn{border:1px solid var(--line);background:var(--surface);padding:8px 14px;border-radius:8px;cursor:pointer;font-weight:500}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--orange);border-color:var(--orange);color:var(--ink-c);font-weight:600}
+.btn.dark{background:var(--ink-c);border-color:var(--ink-c);color:var(--warm)}
+.btn.small{padding:4px 10px;font-size:13.5px}
+.btn.danger{color:var(--bad)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.hint{font-size:12.5px;color:var(--muted)}
+.empty{color:var(--muted);padding:28px 0;text-align:center}
+.page-head{margin-bottom:18px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.chips button{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 12px;cursor:pointer;font-size:14px;white-space:nowrap}
+.chips button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+
+/* Progress, status */
+.pb{position:relative;height:8px;background:var(--soft);border-radius:4px;border:1px solid var(--line)}
+.pb>i{position:absolute;left:0;top:0;bottom:0;border-radius:4px}
+.pb>.mk{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink);border-radius:1px;transform:translateX(-1px)}
+.pb.lg{height:12px}
+.st{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;white-space:nowrap;padding:2px 9px 2px 7px;border-radius:999px;background:var(--soft);border:1px solid var(--line)}
+.st i{width:8px;height:8px;border-radius:50%}
+.st small{font-weight:400;color:var(--muted)}
+.pct{font-weight:700;font-size:15px}
+.cat{font-size:11.5px;padding:1px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-top:10px}
+.legend span{display:inline-flex;gap:6px;align-items:center}
+.legend i{width:9px;height:9px;border-radius:50%}
+.legend .mkk{width:2px;height:12px;border-radius:1px;background:var(--ink)}
+
+/* Overview */
+.banner{background:var(--pink);color:var(--ink-c);border-radius:var(--radius);padding:16px 18px;margin-bottom:16px}
+.banner .big{font-size:20px;font-weight:700;line-height:1.3}
+.banner .counts{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 6px}
+.banner .counts span{background:rgba(255,248,242,.85);border-radius:999px;padding:3px 12px;font-weight:600;font-size:14px;display:inline-flex;gap:6px;align-items:center}
+.banner .counts i{width:9px;height:9px;border-radius:50%}
+.banner p{margin:0;font-size:13.5px}
+.dgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.dcard{background:var(--surface);border:1px solid var(--line);border-top:4px solid var(--dc);border-radius:var(--radius);padding:14px 16px;cursor:pointer;text-align:left;color:inherit}
+.dcard:hover{border-color:var(--muted);border-top-color:var(--dc)}
+.dcard .top2{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:10px}
+.dcard b{font-size:15px}
+.dcard .n{font-size:24px;font-weight:700;line-height:1}
+.dcard .m{font-size:12.5px;color:var(--muted)}
+.dcard .st{margin-top:10px}
+.ogrid{display:grid;grid-template-columns:1.4fr 1fr;gap:16px}
+.prow{display:grid;grid-template-columns:34px 1fr 110px 44px;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.prow:last-child{border-bottom:0}
+.av{width:34px;height:34px;border-radius:8px;display:grid;place-items:center;font-size:12px;font-weight:700;color:var(--ink-c)}
+.prow .nm{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prow .m{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prow .pct{text-align:right;font-size:14px}
+.orow{display:grid;grid-template-columns:40px 1fr 70px;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.orow:last-child{border-bottom:0}
+.orow .num{font-weight:700;color:var(--muted)}
+.orow .t{font-size:14px;font-weight:500}
+.orow .pb{margin-top:6px}
+
+/* OKR cards */
+.ocard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:12px}
+.ohead{display:grid;grid-template-columns:auto 1fr 220px;gap:16px;align-items:center;padding:16px 18px;cursor:pointer;border:0;background:transparent;width:100%;text-align:left;color:inherit}
+.ohead .num{font-size:20px;font-weight:700;color:var(--berry);min-width:36px}
+@media (prefers-color-scheme:dark){.ohead .num{color:var(--pink)}}
+.ohead .t{font-weight:600;font-size:15.5px}
+.ohead .m{font-size:13px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:4px}
+.ohead .rt{display:grid;gap:6px}
+.ohead .rt .row{justify-content:space-between;gap:8px}
+.chev{width:16px;height:16px;transition:transform .15s;flex:none;stroke:var(--muted);fill:none;stroke-width:2}
+.open .chev{transform:rotate(90deg)}
+.obody{border-top:1px solid var(--line);padding:6px 18px 14px}
+.kr{padding:12px 0;border-bottom:1px solid var(--line)}
+.kr:last-child{border-bottom:0}
+.krh{display:grid;grid-template-columns:50px 1fr 200px;gap:12px;align-items:center}
+.krh .num{font-weight:700;color:var(--muted)}
+.krh .t{font-weight:500}
+.krh .rt{display:grid;gap:4px}
+.kpis{margin:10px 0 0 62px;display:grid;gap:6px}
+.kpi{display:grid;grid-template-columns:56px 1fr 150px 44px;gap:10px;align-items:center;background:var(--soft);border-radius:6px;padding:8px 10px;font-size:13.5px}
+.kpi .num{font-weight:600;color:var(--muted)}
+.kpi .who{font-size:12px;color:var(--muted)}
+.kpi .pct{text-align:right;font-size:13.5px}
+
+/* People */
+.pgrid{display:grid;grid-template-columns:280px 1fr;gap:16px;align-items:start}
+.plist{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:6px 12px;position:sticky;top:84px;max-height:calc(100vh - 100px);overflow:auto}
+.plist .prow{grid-template-columns:34px 1fr 40px}
+.plist .prow.on{background:var(--soft);margin:0 -12px;padding-left:12px;padding-right:12px}
+.pgrid>*,.ogrid>*{min-width:0}
+.psel{display:none;margin-bottom:12px}
+.psel select{width:100%;min-width:0;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:10px}
+.phead{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-bottom:14px}
+.phead .av{width:52px;height:52px;font-size:17px;border-radius:12px}
+.phead h2{font-size:22px;margin:0}
+.phead .big{font-size:34px;font-weight:700;line-height:1;text-align:right}
+.note{font-size:13px;border-radius:8px;padding:8px 12px;margin-top:8px}
+.note.warn{background:#FFEDE4;color:#7A3410}
+.note.info{background:var(--soft);color:var(--muted)}
+@media (prefers-color-scheme:dark){.note.warn{background:#3A2E3A;color:#F2B48F}}
+.ptabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:16px;overflow-x:auto}
+.ptabs button{border:0;background:transparent;padding:9px 14px;cursor:pointer;color:var(--muted);font-weight:500;white-space:nowrap;border-bottom:3px solid transparent;margin-bottom:-1px}
+.ptabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--orange)}
+.ptabs .cnt{font-size:11px;background:var(--soft);border:1px solid var(--line);border-radius:999px;padding:0 6px;margin-left:6px}
+.mykpi{border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:10px;background:var(--surface)}
+.mykpi .top3{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+.mykpi .t{font-weight:600}
+.mykpi .m{font-size:12.5px;color:var(--muted)}
+.role{font-size:11.5px;font-weight:600;padding:1px 8px;border-radius:999px;background:var(--ink);color:var(--paper)}
+.role.c{background:var(--soft);color:var(--muted);border:1px solid var(--line)}
+.slider{display:grid;grid-template-columns:110px 1fr 48px;gap:12px;align-items:center;margin-top:10px;font-size:13px}
+.slider input[type=range]{width:100%;accent-color:var(--orange)}
+.slider b{text-align:right}
+.slots{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.slots span{font-size:12px;background:var(--soft);border:1px solid var(--line);border-radius:999px;padding:1px 8px;color:var(--muted)}
+.ach{border-left:3px solid var(--orange);padding:6px 0 6px 14px;margin-bottom:14px}
+.ach .t{font-weight:600}
+.ach .m{font-size:12.5px;color:var(--muted)}
+.ach p{margin:4px 0 0;font-size:14px}
+.form{display:grid;gap:10px;background:var(--soft);border-radius:8px;padding:14px;margin-bottom:16px}
+.form input,.form select,.form textarea{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 10px;width:100%;min-width:0}
+.form label{font-size:12.5px;font-weight:600;color:var(--muted);display:grid;gap:4px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.two>*{min-width:0}
+
+/* Review */
+.rvbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.rvbar select{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:6px 10px}
+.flag{font-size:12px;font-weight:600;border-radius:999px;padding:2px 10px;border:1px solid var(--line);background:var(--soft);color:var(--muted)}
+.flag.rel{background:var(--berry);border-color:var(--berry);color:var(--warm)}
+.flag.frz{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.rvsec{margin-bottom:18px}
+.val{margin-bottom:12px}
+.val b{display:block;font-size:14px}
+.val .q{font-size:13px;color:var(--muted);margin-bottom:6px}
+.val textarea,.comp textarea,.comp select{border:1px solid var(--line);background:var(--paper);border-radius:8px;padding:8px 10px;width:100%;min-width:0}
+.val textarea{min-height:64px}
+.comp{border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:10px}
+.comp .t{font-weight:600}
+.comp .d{font-size:12.5px;color:var(--muted);margin-bottom:8px}
+.comp .cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.comp .cols>div{display:grid;gap:6px;min-width:0}
+.comp label{font-size:12px;font-weight:600;color:var(--muted)}
+.comp textarea{min-height:52px;font-size:14px}
+.scores{display:flex;gap:16px;flex-wrap:wrap;font-size:14px;margin-top:6px}
+.scores b{font-size:18px}
+.locked{opacity:.75}
+
+/* Reports */
+.tgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+.tcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;cursor:pointer;text-align:left;color:inherit}
+.tcard:hover{border-color:var(--muted)}
+.tcard[aria-pressed="true"]{border-color:var(--orange);box-shadow:inset 0 0 0 1px var(--orange)}
+.tcard b{display:block;margin-bottom:4px}
+.tcard span{font-size:13px;color:var(--muted)}
+.tbl-scroll{overflow-x:auto}
+table.tbl{width:100%;border-collapse:collapse;font-size:14px}
+.tbl th{text-align:left;font-weight:600;font-size:12.5px;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+.tbl td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+.tbl td.num,.tbl th.num{text-align:right;white-space:nowrap}
+.tbl tr.grp td{background:var(--soft);font-weight:600}
+
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink-c);color:var(--warm);padding:10px 16px;border-radius:8px;font-size:14px;z-index:30;max-width:90vw}
+@media (prefers-reduced-motion:no-preference){.toast{animation:pop .2s ease-out}@keyframes pop{from{opacity:0;transform:translate(-50%,6px)}}}
+
+footer{color:var(--muted);font-size:13px;padding:24px 0 40px;border-top:1px solid var(--line)}
+footer a{color:var(--ink);text-decoration-color:var(--orange);text-decoration-thickness:2px;text-underline-offset:3px}
+.made{display:flex;align-items:center;gap:10px;margin-bottom:8px;color:var(--ink);font-weight:700}
+.made .mark i:not(:nth-child(1)):not(:nth-child(2)):not(:nth-child(5)):not(:nth-child(6)):not(:nth-child(9)){background:var(--ink)}
+.made .tag2{font-weight:400;color:var(--muted)}
+
+@media print{
+  .top,.tabs,footer,.tgrid,.noprint,.toast{display:none !important}
+  body{background:#fff;color:#000}
+  .panel{border:0;padding:0}
+}
+
+/* Laptop and tablet */
+@media (max-width:1100px){
+  .dgrid{grid-template-columns:repeat(2,1fr)}
+  .ohead{grid-template-columns:auto 1fr 180px}
+}
+@media (max-width:900px){
+  .ogrid,.pgrid{grid-template-columns:1fr}
+  .plist{display:none}
+  .psel{display:block}
+  .tgrid{grid-template-columns:repeat(2,1fr)}
+  .kpis{margin-left:0}
+}
+/* Phone */
+@media (max-width:640px){
+  input,select,textarea{font-size:16px !important}
+  .wrap{padding:0 16px}
+  .top .wrap{gap:8px 12px;min-height:0;padding-top:10px;padding-bottom:10px}
+  .co{display:none}
+  .demo-chip{margin-left:auto;font-size:11.5px}
+  .persona{width:100%;margin-left:0}
+  .persona select{flex:1;max-width:none;min-width:0;width:100%}
+
+  .tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--ink-c);padding:4px 4px calc(4px + env(safe-area-inset-bottom,0px));gap:0;overflow:visible}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 2px 6px;border-radius:0;color:#CFC8D8;font-size:11px;position:relative}
+  .tab:hover{background:transparent;color:var(--warm)}
+  .tab[aria-selected="true"]{background:transparent;color:var(--warm);box-shadow:inset 0 3px 0 var(--orange)}
+  .tab svg{display:block}
+  .tab .long{display:none}
+  .tab .short{display:inline}
+
+  main{padding:20px 0 24px}
+  footer{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
+  .toast{bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+  h1{font-size:28px}
+  .panel{padding:14px}
+  .chips{flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px}
+  .page-head .acts{width:100%;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+  .dgrid{grid-template-columns:1fr}
+  .banner .big{font-size:18px}
+  .ohead{grid-template-columns:auto 1fr;gap:10px 12px;padding:14px}
+  .ohead .rt{grid-column:1/-1}
+  .obody{padding:4px 14px 12px}
+  .krh{grid-template-columns:40px 1fr}
+  .krh .rt{grid-column:1/-1}
+  .kpi{grid-template-columns:48px 1fr 40px}
+  .kpi .pb{grid-column:1/-1;grid-row:2}
+  .prow{grid-template-columns:34px 1fr 70px 40px}
+  .phead .big{font-size:28px}
+  .slider{grid-template-columns:1fr 48px}
+  .slider span{grid-column:1/-1}
+  .comp .cols{grid-template-columns:1fr}
+  .tgrid{grid-template-columns:1fr}
+  table.tbl{min-width:640px}
+  .two{grid-template-columns:1fr}
+  .made{flex-wrap:wrap}
+  .made .tag2{flex-basis:100%}
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+/* ============================================================
+   Settings for the demo. Change names here.
+   ============================================================ */
+const CONFIG = {
+  product: "KPIboard",
+  company: "Northwind Labs",               // fictional client
+  builtBy: "Natalia Stepanova",
+  consultancy: "YOUR BRAND",               // working name from the brand book
+  tagline: "Automation and operations consulting",
+  contact: "you@example.com"                // replace with your contact email
+};
+
+/* ---------- Helpers ---------- */
+const pad = n => String(n).padStart(2,"0");
+const D = s => Date.parse(s + "T00:00:00Z");
+const iso = t => new Date(t).toISOString().slice(0,10);
+const addDays = (s,n) => iso(D(s) + n*864e5);
+const now = new Date();
+const TODAY = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+const CY = now.getFullYear();
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const clamp = (v,a=0,b=100) => Math.max(a, Math.min(b, Math.round(v)));
+const avg = a => a.length ? Math.round(a.reduce((s,v)=>s+v,0)/a.length) : null;
+const first = n => n.split(" ")[0];
+const initials = n => n.split(" ").map(x=>x[0]).slice(0,2).join("");
+const stamp = () => { const d=new Date(); return `${TODAY} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+function rng(seed){ return () => { seed|=0; seed=seed+0x6D2B79F5|0; let t=Math.imul(seed^seed>>>15,1|seed); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+const R = rng(424242);
+
+/* ---------- Time-aware targets ----------
+   Quarter index q counts from the start of the cycle: 1..4 this year, 5..8 next year.
+   Expected % = share of time passed between the cycle start and the end of q. */
+const CYCLE_START = D(`${CY}-01-01`);
+const qEnd = q => Date.UTC(CY + Math.floor((q-1)/4), ((q-1)%4)*3 + 3, 1);
+const qLabel = q => `Q${((q-1)%4)+1} ${CY + Math.floor((q-1)/4)}`;
+const NOWT = D(TODAY);
+const expected = q => clamp((NOWT - CYCLE_START) / (qEnd(q) - CYCLE_START) * 100);
+const CUR_Q = Math.floor(now.getMonth()/3) + 1;
+const YEAR_PCT = clamp((NOWT - CYCLE_START) / (Date.UTC(CY+1,0,1) - CYCLE_START) * 100);
+const HEALTH = {ok:{label:"On track", color:"var(--ok)"}, risk:{label:"At risk", color:"var(--risk)"}, behind:{label:"Behind", color:"var(--behind)"}};
+const health = (actual, exp) => { const gap = exp - actual; return gap <= 10 ? "ok" : gap <= 25 ? "risk" : "behind"; };
+
+/* ---------- Organisation ---------- */
+const DEPTS = [
+  {id:"eng", name:"Engineering", color:"#743354"},
+  {id:"rd",  name:"R&D",         color:"#F5A6C8"},
+  {id:"com", name:"Commercial",  color:"#FF743D"},
+  {id:"ops", name:"Operations",  color:"#9C93B0"}
+];
+const DEPT = id => DEPTS.find(d => d.id===id);
+const monthsAgoEnd = k => iso(Date.UTC(CY, now.getMonth()-k+1, 0));
+const PEOPLE = [
+  {id:"tr", name:"Tomás Ribeiro",  title:"CEO", dept:null, start:"2021-02-01"},
+  {id:"ev", name:"Elena Varga",    title:"Head of People and Operations", dept:"ops", start:"2022-05-02", admin:true},
+  {id:"nh", name:"Nora Haddad",    title:"Finance Manager", dept:"ops", start:"2024-01-08"},
+  {id:"hw", name:"Hannah Weiss",   title:"Engineering Lead", dept:"eng", start:"2022-09-01"},
+  {id:"jk", name:"Jonas Keller",   title:"Software Engineer", dept:"eng", start:"2024-04-15"},
+  {id:"ms", name:"Mateo Silva",    title:"Embedded Engineer", dept:"eng", start:"2023-06-01", end:monthsAgoEnd(1)},
+  {id:"kl", name:"Kai Lindqvist",  title:"Data Engineer", dept:"eng", start:addDays(TODAY,-25)},
+  {id:"dn", name:"Daniel Novak",   title:"R&D Lead", dept:"rd", start:"2023-01-09"},
+  {id:"ab", name:"Amira Benali",   title:"Research Scientist", dept:"rd", start:"2025-02-03"},
+  {id:"lm", name:"Lucas Moreau",   title:"Lab Technician", dept:"rd", start:`${CY}-03-16`},
+  {id:"pn", name:"Priya Nair",     title:"Business Development Manager", dept:"com", start:"2024-10-01"},
+  {id:"sm", name:"Sofia Marchetti",title:"Marketing Lead", dept:"com", start:"2025-06-02"}
+];
+const P = id => PEOPLE.find(p => p.id===id);
+const deptColor = p => p.dept ? DEPT(p.dept).color : "#CFC8D8";
+
+/* Start and end dates: progress counts toward company and department goals
+   from the first full quarter after someone joins, and stops after they leave. */
+const firstFullQuarter = start => { const d = new Date(D(start)); const y = d.getUTCFullYear(), m = d.getUTCMonth(), day = d.getUTCDate();
+  const qStartMonth = Math.floor(m/3)*3; if(m===qStartMonth && day===1) return start; const nm = qStartMonth + 3; return iso(Date.UTC(y + Math.floor(nm/12), nm%12, 1)); };
+const hasLeft = p => !!p.end && p.end < TODAY;
+const counts = p => !hasLeft(p) && firstFullQuarter(p.start) <= TODAY;
+
+/* ---------- Objectives, key results, KPIs ---------- */
+const OBJ = [
+  {id:"o1", n:1, title:"Launch the first commercial product release", cat:"Operational", q:4, owner:"hw", bias:4, krs:[
+    {id:"k11", n:"1.1", title:"Ship version 1.0 to the first three customers", q:4, kpis:[
+      ["1.1.1","Fix all critical beta feedback","jk",["kl"]], ["1.1.2","Pass the release security review","hw",[]], ["1.1.3","Complete hardware validation","ms",["hw"]]]},
+    {id:"k12", n:"1.2", title:"Reach 99.5% uptime in the pilot", q:4, kpis:[
+      ["1.2.1","Set up monitoring and alerting","kl",["jk"]], ["1.2.2","Run two failover drills","jk",[]]]}]},
+  {id:"o2", n:2, title:"Validate the core science with partner labs", cat:"Strategic", q:6, owner:"dn", bias:-3, krs:[
+    {id:"k21", n:"2.1", title:"Publish results from two partner studies", q:6, kpis:[
+      ["2.1.1","Complete study A data collection","ab",[]], ["2.1.2","Draft the study A paper","dn",["ab"]]]},
+    {id:"k22", n:"2.2", title:"Sign one new academic partnership", q:4, kpis:[
+      ["2.2.1","Shortlist and contact five labs","dn",["pn"]], ["2.2.2","Agree terms with one lab","pn",[]]]}]},
+  {id:"o3", n:3, title:"Grow revenue from new customers", cat:"Strategic", q:4, owner:"pn", bias:-27, krs:[
+    {id:"k31", n:"3.1", title:"Build a qualified pipeline of 40 opportunities", q:3, kpis:[
+      ["3.1.1","Attend four industry events","sm",[]], ["3.1.2","Book 40 discovery calls","pn",["sm"]]]},
+    {id:"k32", n:"3.2", title:"Close three paid pilots", q:4, kpis:[
+      ["3.2.1","Send six pilot proposals","pn",[]], ["3.2.2","Publish two customer case studies","sm",["kl"]]]}]},
+  {id:"o4", n:4, title:"Build scalable people and HR systems", cat:"Operational", q:4, owner:"ev", bias:6, krs:[
+    {id:"k41", n:"4.1", title:"Hire eight people for open roles", q:4, kpis:[
+      ["4.1.1","Launch a careers page and hiring tracker","ev",[]], ["4.1.2","Run structured interviews for every role","ev",["hw","dn"]]]},
+    {id:"k42", n:"4.2", title:"Run quarterly performance reviews", q:4, kpis:[
+      ["4.2.1","Roll out the review template","ev",[]], ["4.2.2","Complete reviews for all staff","ev",["nh"]]]}]},
+  {id:"o5", n:5, title:"Put finance and compliance foundations in place", cat:"Operational", q:5, owner:"nh", bias:-15, krs:[
+    {id:"k51", n:"5.1", title:"Close the books within 10 days each month", q:4, kpis:[
+      ["5.1.1","Introduce a month-end checklist","nh",[]], ["5.1.2","Automate bank reconciliation","nh",["ev"]]]},
+    {id:"k52", n:"5.2", title:"Pass the first external audit", q:5, kpis:[
+      ["5.2.1","Prepare the audit file","nh",[]], ["5.2.2","Document internal controls","ev",["nh"]]]}]},
+  {id:"o6", n:6, title:"Improve lab throughput", cat:"Tactical", q:4, owner:"dn", bias:-1, krs:[
+    {id:"k61", n:"6.1", title:"Cut sample turnaround time by 30%", q:4, kpis:[
+      ["6.1.1","Standardise sample intake","lm",[]], ["6.1.2","Automate plate reading","ab",["lm"]]]},
+    {id:"k62", n:"6.2", title:"Keep equipment downtime under 5%", q:3, kpis:[
+      ["6.2.1","Run a preventive maintenance schedule","lm",[]]]}]}
+];
+
+function seedKPIs(){
+  const out = [];
+  for(const o of OBJ) for(const kr of o.krs) for(const [num,title,owner,contrib] of kr.kpis){
+    const exp = expected(kr.q), prog = {};
+    for(const pid of [owner, ...contrib]){
+      let v = exp + o.bias + (R()*16 - 8);
+      if(pid==="kl") v = Math.min(v, 20 + R()*15);
+      prog[pid] = clamp(v);
+    }
+    out.push({id:"kpi"+num.replace(/\./g,""), num, title, kr:kr.id, obj:o.id, q:kr.q, owner, contrib:[...contrib], prog});
+  }
+  return out;
+}
+const VALUES = [
+  {id:"customer", name:"Customer first", q:"Where did you put a customer's needs first this quarter?"},
+  {id:"integrity", name:"Act with integrity", q:"When did you raise a concern or admit a mistake early, and what happened?"},
+  {id:"own", name:"Own it", q:"What did you take full ownership of, start to finish?"},
+  {id:"simple", name:"Keep it simple", q:"What did you simplify for yourself or for the team?"}
+];
+const COMPETENCIES = [
+  {id:"comm", name:"Communication", d:"Keeps stakeholders informed and responds within one working day."},
+  {id:"collab", name:"Collaboration", d:"Works well across teams and helps others succeed."},
+  {id:"results", name:"Ownership of results", d:"Delivers agreed goals and flags risks early."},
+  {id:"time", name:"Time management", d:"Prioritises well and meets deadlines."},
+  {id:"growth", name:"Continuous improvement", d:"Learns new skills and improves how work gets done."},
+  {id:"values", name:"Living our values", d:"Applies company values in day-to-day work."}
+];
+const SCALE = [[1,"Severely underperformed"],[2,"Underperformed"],[3,"Satisfactory"],[4,"Met expectations"],[5,"Excelled beyond expectations"]];
+
+function seedAchievements(){
+  return [
+    {id:1, emp:"jk", title:"Cut build time from 14 to 6 minutes", date:addDays(TODAY,-20), outcome:"Faster releases for the whole team.", obj:"o1"},
+    {id:2, emp:"ev", title:"Launched the careers page and hiring tracker", date:addDays(TODAY,-62), outcome:"All applications now in one place. Time to first reply down to 3 days.", obj:"o4"},
+    {id:3, emp:"ab", title:"First full dataset for study A", date:addDays(TODAY,-34), outcome:"Two weeks ahead of the plan agreed with the partner lab.", obj:"o2"},
+    {id:4, emp:"nh", title:"Month-end close in 9 days", date:addDays(TODAY,-8), outcome:"First month under the 10-day target.", obj:"o5"},
+    {id:5, emp:"pn", title:"Signed the first paid pilot", date:addDays(TODAY,-15), outcome:"Pilot with a regional hospital group, 3 months.", obj:"o3"},
+    {id:6, emp:"lm", title:"New sample intake form", date:addDays(TODAY,-41), outcome:"Intake errors dropped from 6% to under 1%.", obj:"o6"},
+    {id:7, emp:"hw", title:"Security review passed with no critical findings", date:addDays(TODAY,-5), outcome:"Release 1.0 cleared to ship.", obj:"o1"}
+  ];
+}
+const PERIODS = [...Array.from({length:CUR_Q},(_,i)=>({y:CY, q:i+1})), {y:CY, q:"A"}];
+const pKey = p => `${p.y}-${p.q}`;
+const DEFAULT_PERIOD = PERIODS.find(x => x.q===CUR_Q-1) || PERIODS[0];
+const pLabel = p => p.q==="A" ? `${p.y} annual review` : `Q${p.q} ${p.y}`;
+function seedReviews(){
+  const rv = {};
+  if(CUR_Q < 2) return rv;
+  const prev = {y:CY, q:CUR_Q-1};
+  const make = (emp, sa, ma, rel) => {
+    const comp = {}; COMPETENCIES.forEach((c,i)=>{ comp[c.id] = {sa:sa[i], ma:ma?ma[i]:null, et:"", mt:""}; });
+    comp.results.et = "Delivered my main KPIs; one slipped by two weeks."; if(ma) comp.results.mt = "Strong delivery. Flag slips earlier next quarter.";
+    rv[`${emp}|${pKey(prev)}`] = {values:{own:"Took over the release checklist and kept it current.", simple:"Merged two weekly meetings into one."}, comp, released:rel, reviewer:"Elena Varga", updated:addDays(TODAY,-12)};
+  };
+  make("jk",[4,4,4,3,4,4],[4,5,4,3,4,4],true);
+  make("ab",[4,4,5,4,4,4],[5,4,5,4,4,5],true);
+  make("pn",[4,3,3,3,4,4],[3,4,3,3,3,4],false);
+  return rv;
+}
+
+/* ---------- State ---------- */
+let S = {
+  me:"ev", tab:"overview", cat:"", dept:"eng", person:"jk", ptab:"kpis",
+  open:new Set(["o1"]), kpis:seedKPIs(), achievements:seedAchievements(), nextAch:8,
+  reviews:seedReviews(), frozen:{}, period:null, report:null, rDept:"eng", rEmp:"jk", adding:false
+};
+const ME = () => P(S.me);
+const isAdmin = () => !!ME().admin;
+const canEdit = empId => isAdmin() || S.me===empId;
+const K = id => S.kpis.find(k => k.id===id);
+
+/* ---------- Rollups ---------- */
+const roster = k => [k.owner, ...k.contrib];
+const kpiTotal = k => avg(roster(k).map(p => k.prog[p] ?? 0)) ?? 0;
+const kpiRollup = k => avg(roster(k).filter(id => counts(P(id))).map(p => k.prog[p] ?? 0));     // null if nobody counts
+const krKpis = krId => S.kpis.filter(k => k.kr===krId);
+const krProgress = kr => avg(krKpis(kr.id).map(kpiRollup).filter(v => v!=null)) ?? 0;
+const objProgress = o => avg(o.krs.map(krProgress)) ?? 0;
+const objExpected = o => avg(o.krs.map(kr => expected(kr.q)));
+const deptKpis = d => S.kpis.filter(k => P(k.owner).dept===d);
+const deptStats = d => { const ks = deptKpis(d).filter(k => kpiRollup(k)!=null); return {p: avg(ks.map(kpiRollup)) ?? 0, e: avg(ks.map(k => expected(k.q))) ?? YEAR_PCT}; };
+const personKpis = id => S.kpis.filter(k => roster(k).includes(id));
+const personStats = id => { const ks = personKpis(id); return ks.length ? {p: avg(ks.map(k => k.prog[id] ?? 0)), e: avg(ks.map(k => expected(k.q)))} : null; };
+const OBJ_OF = id => OBJ.find(o => o.id===id);
+const KR_OF = id => { for(const o of OBJ) for(const kr of o.krs) if(kr.id===id) return kr; };
+
+/* ---------- Small components ---------- */
+const bar = (p, e, color, lg) => `<div class="pb${lg?" lg":""}" role="img" aria-label="${p}% done, target ${e}% by now"><i style="width:${p}%;background:${color}"></i>${e!=null?`<span class="mk" style="left:${e}%"></span>`:""}</div>`;
+const status = (p, e, showTarget=true) => { const h = HEALTH[health(p,e)]; return `<span class="st"><i style="background:${h.color}"></i>${h.label}${showTarget?` <small>target ${e}%</small>`:""}</span>`; };
+const hcolor = (p,e) => HEALTH[health(p,e)].color;
+const avatar = p => `<span class="av" style="background:${deptColor(p)};${p.dept==="eng"?"color:var(--warm)":""}">${initials(p.name)}</span>`;
+const legend = () => `<div class="legend"><span><i style="background:var(--ok)"></i>On track: within 10 points of target</span><span><i style="background:var(--risk)"></i>At risk: 10 to 25 points behind</span><span><i style="background:var(--behind)"></i>Behind: more than 25 points</span><span><span class="mkk"></span>Where it should be today</span></div>`;
+
+/* ---------- Rendering ---------- */
+const app = document.getElementById("app");
+const ICONS = {
+  overview:'<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/>',
+  company:'<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".8"/>',
+  depts:'<rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="14" y="4" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+  people:'<circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6"/>',
+  reports:'<path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/>'
+};
+function render(){
+  const ae = document.activeElement, keep = ae && ae.id ? {id:ae.id, pos:ae.selectionStart} : null;
+  const y = window.scrollY;
+  const tabs = [["overview","Overview","Overview"],["company","Company OKRs","OKRs"],["depts","Departments","Teams"],["people","People","People"]];
+  if(isAdmin()) tabs.push(["reports","Reports","Reports"]);
+  if(!tabs.some(t=>t[0]===S.tab)) S.tab = "overview";
+  const views = {overview:viewOverview, company:viewCompany, depts:viewDepts, people:viewPeople, reports:viewReports};
+  app.innerHTML = `
+  <header class="top"><div class="wrap">
+    <div class="brand"><span class="mark" aria-hidden="true">${"<i></i>".repeat(9)}</span>${esc(CONFIG.product)}</div>
+    <span class="co">${esc(CONFIG.company)}</span>
+    <span class="demo-chip">Demo with fictional data. Reload to reset.</span>
+    <label class="persona">Signed in as
+      <select data-act="persona">${["ev","hw","jk"].map(id=>{const u=P(id); return `<option value="${id}" ${id===S.me?"selected":""}>${esc(u.name)}, ${esc(u.title)}${u.admin?" (admin)":""}</option>`;}).join("")}</select>
+    </label>
+  </div></header>
+  <div class="wrap">
+    <nav class="tabs" role="tablist">${tabs.map(([k,l,sh])=>`<button class="tab" role="tab" data-act="tab" data-k="${k}" aria-selected="${S.tab===k}" aria-label="${l}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[k]}</svg><span class="long">${l}</span><span class="short">${sh}</span></button>`).join("")}</nav>
+    <main>${views[S.tab]()}</main>
+    <footer>
+      <div class="made"><span class="mark" aria-hidden="true">${"<i></i>".repeat(9)}</span>${esc(CONFIG.consultancy)} <span class="tag2">${esc(CONFIG.tagline)}</span></div>
+      ${esc(CONFIG.product)} runs on Microsoft 365: sign-in with Microsoft accounts, goals and progress in SharePoint lists, updates sent by Outlook or Teams.
+      Designed and built by ${esc(CONFIG.builtBy)}. Want software that fits the way your team works? <a href="mailto:${esc(CONFIG.contact)}">${esc(CONFIG.contact)}</a>
+    </footer>
+  </div>`;
+  if(S.keepScroll){ window.scrollTo(0,y); S.keepScroll = false; }
+  if(keep){ const el = document.getElementById(keep.id); if(el){ el.focus(); try{ el.setSelectionRange(keep.pos,keep.pos); }catch(e){} } }
+}
+
+/* Overview */
+function viewOverview(){
+  const hs = OBJ.map(o => health(objProgress(o), objExpected(o)));
+  const n = k => hs.filter(h=>h===k).length;
+  const team = PEOPLE.filter(p => !hasLeft(p)).map(p => ({p, s:personStats(p.id)})).filter(x=>x.s).sort((a,b)=>b.s.p-a.s.p);
+  return `
+  <div class="page-head"><h1>Overview</h1><p class="sub" style="margin:0">How ${esc(CONFIG.company)} is doing against this year's goals, measured against where each goal should be today.</p></div>
+  <section class="banner">
+    <div class="big">Q${CUR_Q} ${CY}. ${YEAR_PCT}% of the year has passed.</div>
+    <div class="counts"><span><i style="background:var(--ok)"></i>${n("ok")} on track</span><span><i style="background:var(--risk)"></i>${n("risk")} at risk</span><span><i style="background:var(--behind)"></i>${n("behind")} behind</span><span>of ${OBJ.length} objectives</span></div>
+    <p>Each goal is compared with where it should be today, based on its due date. Due ${qLabel(4)}: ${expected(4)}% by now. Due ${qLabel(5)}: ${expected(5)}%. Due ${qLabel(6)}: ${expected(6)}%.</p>
+  </section>
+  <h2>Departments</h2>
+  <div class="dgrid">${DEPTS.map(d=>{ const s = deptStats(d.id), m = PEOPLE.filter(p=>p.dept===d.id && !hasLeft(p)).length;
+    return `<button class="dcard" style="--dc:${d.color}" data-act="go-dept" data-k="${d.id}"><div class="top2"><div><b>${d.name}</b><div class="m">${m} people</div></div><span class="n">${s.p}%</span></div>${bar(s.p,s.e,d.color)}${status(s.p,s.e)}</button>`;}).join("")}</div>
+  <div class="ogrid">
+    <section class="panel"><h2>Company objectives</h2>
+      ${OBJ.map(o=>{ const p = objProgress(o), e = objExpected(o); return `<div class="orow" data-act="go-obj" data-k="${o.id}"><span class="num">O${o.n}</span><div><div class="t">${esc(o.title)}</div>${bar(p,e,hcolor(p,e))}</div><span class="pct" style="text-align:right">${p}%</span></div>`;}).join("")}
+      ${legend()}
+    </section>
+    <section class="panel"><h2>Team</h2>
+      ${team.map(({p,s})=>`<div class="prow" data-act="go-person" data-k="${p.id}">${avatar(p)}<div style="min-width:0"><div class="nm">${esc(p.name)}</div><div class="m">${esc(p.title)}</div></div>${bar(s.p,s.e,hcolor(s.p,s.e))}<span class="pct">${s.p}%</span></div>`).join("")}
+    </section>
+  </div>`;
+}
+
+/* Company OKRs */
+function kpiLine(k){
+  const t = kpiTotal(k), e = expected(k.q), o = P(k.owner);
+  const who = [o.name.split(" ")[0] + " (owner)", ...k.contrib.map(id=>first(P(id).name))].join(", ");
+  return `<div class="kpi"><span class="num">${k.num}</span><div style="min-width:0"><div>${esc(k.title)}</div><div class="who">${esc(who)}</div></div>${bar(t,e,hcolor(t,e))}<span class="pct">${t}%</span></div>`;
+}
+function objCard(o){
+  const p = objProgress(o), e = objExpected(o), open = S.open.has(o.id);
+  return `<article class="ocard${open?" open":""}" id="card-${o.id}">
+    <button class="ohead" data-act="toggle" data-k="${o.id}" aria-expanded="${open}">
+      <span class="row" style="gap:8px;flex-wrap:nowrap"><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="num">O${o.n}</span></span>
+      <span style="min-width:0"><span class="t">${esc(o.title)}</span><span class="m"><span class="cat">${o.cat}</span>Due ${qLabel(o.q)}. Owner ${esc(P(o.owner).name)}</span></span>
+      <span class="rt"><span class="row"><span class="pct">${p}%</span>${status(p,e)}</span>${bar(p,e,hcolor(p,e),true)}</span>
+    </button>
+    ${open?`<div class="obody">${o.krs.map(kr=>{ const kp = krProgress(kr), ke = expected(kr.q);
+      return `<div class="kr"><div class="krh"><span class="num">${kr.n}</span><div><div class="t">${esc(kr.title)}</div><div class="hint">Due ${qLabel(kr.q)}</div></div><span class="rt"><span class="row" style="justify-content:space-between"><b>${kp}%</b>${status(kp,ke,false)}</span>${bar(kp,ke,hcolor(kp,ke))}</span></div>
+        <div class="kpis">${krKpis(kr.id).map(kpiLine).join("")}</div></div>`;}).join("")}</div>`:""}
+  </article>`;
+}
+function viewCompany(){
+  const list = OBJ.filter(o => !S.cat || o.cat===S.cat);
+  return `
+  <div class="row page-head"><div><h1>Company OKRs</h1><p class="sub" style="margin:0">Objectives break down into key results, and key results into KPIs owned by people. Progress rolls up automatically.</p></div>
+    <span class="spacer"></span><div class="row acts"><button class="btn" data-act="expand-all">Expand all</button><button class="btn" data-act="collapse-all">Collapse all</button></div></div>
+  <div class="chips">${[["","All"],["Operational","Operational"],["Strategic","Strategic"],["Tactical","Tactical"]].map(([k,l])=>`<button data-act="cat" data-k="${k}" aria-pressed="${S.cat===k}">${l}</button>`).join("")}</div>
+  ${list.map(objCard).join("")}
+  ${legend()}`;
+}
+
+/* Departments */
+function viewDepts(){
+  const d = DEPT(S.dept), s = deptStats(d.id), ks = deptKpis(d.id);
+  const members = PEOPLE.filter(p => p.dept===d.id);
+  const byObj = OBJ.map(o => [o, ks.filter(k => k.obj===o.id)]).filter(x => x[1].length);
+  return `
+  <div class="page-head"><h1>Departments</h1><p class="sub" style="margin:0">Each department's progress is the average of the KPIs its people own.</p></div>
+  <div class="chips">${DEPTS.map(x=>`<button data-act="dept" data-k="${x.id}" aria-pressed="${S.dept===x.id}">${x.name}</button>`).join("")}</div>
+  <section class="panel" style="margin-bottom:16px;border-top:4px solid ${d.color}">
+    <div class="row"><div><h2 style="margin:0">${d.name}</h2><div class="hint">${members.filter(p=>!hasLeft(p)).length} people. ${ks.length} KPIs.</div></div><span class="spacer"></span><span class="pct" style="font-size:28px">${s.p}%</span>${status(s.p,s.e)}</div>
+    <div style="margin-top:12px">${bar(s.p,s.e,d.color,true)}</div>
+  </section>
+  <div class="ogrid">
+    <section class="panel"><h2>KPIs by company objective</h2>
+      ${byObj.map(([o,list])=>`<div style="margin-bottom:14px"><h3>O${o.n}. ${esc(o.title)}</h3><div class="kpis" style="margin:0">${list.map(kpiLine).join("")}</div></div>`).join("")}
+    </section>
+    <section class="panel"><h2>Members</h2>
+      ${members.map(p=>{ const st = personStats(p.id); return `<div class="prow" data-act="go-person" data-k="${p.id}">${avatar(p)}<div style="min-width:0"><div class="nm">${esc(p.name)}</div><div class="m">${esc(p.title)}${hasLeft(p)?". Left "+p.end:""}</div></div>${st?bar(st.p,st.e,hcolor(st.p,st.e)):"<span></span>"}<span class="pct">${st?st.p+"%":""}</span></div>`;}).join("")}
+    </section>
+  </div>`;
+}
+
+/* People */
+function viewPeople(){
+  const p = P(S.person), st = personStats(p.id), mine = S.me===p.id;
+  const showReview = isAdmin() || mine;
+  if(!showReview && S.ptab==="review") S.ptab = "kpis";
+  const achCount = S.achievements.filter(a=>a.emp===p.id).length;
+  let note = "";
+  if(hasLeft(p)) note = `<div class="note warn">Left on ${p.end}. Progress stays visible here but no longer counts toward company and department goals.</div>`;
+  else if(!counts(p)) note = `<div class="note info">Joined on ${p.start}. Progress counts toward company and department goals from ${firstFullQuarter(p.start)}, the first full quarter.</div>`;
+  const list = [...PEOPLE].sort((a,b)=>a.name.localeCompare(b.name));
+  return `
+  <div class="page-head"><h1>People</h1><p class="sub" style="margin:0">Everyone's KPIs, achievements and performance reviews in one place.</p></div>
+  <div class="pgrid">
+    <aside class="plist" aria-label="People">${list.map(x=>{ const s = personStats(x.id); return `<div class="prow${x.id===p.id?" on":""}" data-act="person" data-k="${x.id}">${avatar(x)}<div style="min-width:0"><div class="nm">${esc(x.name)}</div><div class="m">${esc(x.title)}</div></div><span class="pct" style="font-size:13px">${s?s.p+"%":""}</span></div>`;}).join("")}</aside>
+    <div>
+      <div class="psel"><select id="p-sel" aria-label="Person">${list.map(x=>`<option value="${x.id}" ${x.id===p.id?"selected":""}>${esc(x.name)}, ${esc(x.title)}</option>`).join("")}</select></div>
+      <section class="panel">
+        <div class="phead">${avatar(p)}<div style="flex:1;min-width:180px"><h2>${esc(p.name)}${mine?" (you)":""}</h2><div class="hint">${esc(p.title)}. ${p.dept?DEPT(p.dept).name:"Leadership"}. Started ${p.start}${p.end?`. Last day ${p.end}`:""}</div></div>
+          ${st?`<div><div class="big" style="color:${hcolor(st.p,st.e)}">${st.p}%</div><div style="margin-top:6px">${status(st.p,st.e)}</div></div>`:""}</div>
+        ${note}
+        <div class="ptabs" role="tablist" style="margin-top:14px">
+          <button data-act="ptab" data-k="kpis" aria-selected="${S.ptab==="kpis"}">KPIs</button>
+          <button data-act="ptab" data-k="ach" aria-selected="${S.ptab==="ach"}">Achievements<span class="cnt">${achCount}</span></button>
+          ${showReview?`<button data-act="ptab" data-k="review" aria-selected="${S.ptab==="review"}">Performance review</button>`:""}
+        </div>
+        ${S.ptab==="kpis" ? personKPIsHtml(p) : S.ptab==="ach" ? achHtml(p) : reviewHtml(p)}
+      </section>
+    </div>
+  </div>`;
+}
+function personKPIsHtml(p){
+  const ks = personKpis(p.id);
+  if(!ks.length) return `<div class="empty">No KPIs assigned yet.</div>`;
+  const edit = canEdit(p.id);
+  return `${edit?`<p class="hint" style="margin-top:0">Move a slider to update progress. The KPI total is the average of everyone working on it.</p>`:`<p class="hint" style="margin-top:0">Read only. People update their own progress, and admins can update anyone's.</p>`}
+  ${ks.map(k=>{ const kr = KR_OF(k.kr), o = OBJ_OF(k.obj), mineV = k.prog[p.id] ?? 0, e = expected(k.q), t = kpiTotal(k), isOwner = k.owner===p.id;
+    return `<div class="mykpi">
+      <div class="top3"><div style="min-width:0;flex:1"><div class="t">${k.num}. ${esc(k.title)}</div><div class="m">KR ${kr.n}: ${esc(kr.title)}. O${o.n}. Due ${qLabel(k.q)}</div></div><span class="role${isOwner?"":" c"}">${isOwner?"Owner":"Contributor"}</span></div>
+      <div class="slider"><span>${esc(first(p.name))}'s progress</span>${edit?`<input type="range" min="0" max="100" step="5" value="${mineV}" data-act="slot" data-id="${k.id}" data-emp="${p.id}" aria-label="Progress for ${esc(k.title)}">`:bar(mineV,e,hcolor(mineV,e))}<b id="v-${k.id}-${p.id}">${mineV}%</b></div>
+      <div class="row" style="margin-top:8px;gap:8px">${status(mineV,e)}<span class="hint">KPI total ${t}%</span></div>
+      ${roster(k).length>1?`<div class="slots">${roster(k).map(id=>`<span>${esc(first(P(id).name))} ${k.prog[id] ?? 0}%</span>`).join("")}</div>`:""}
+    </div>`;}).join("")}`;
+}
+function achHtml(p){
+  const list = S.achievements.filter(a=>a.emp===p.id).sort((a,b)=>b.date.localeCompare(a.date));
+  const edit = canEdit(p.id);
+  return `${edit?(S.adding?`<div class="form">
+      <label>What was achieved<input id="a-title" placeholder="For example: shipped the new onboarding flow"></label>
+      <div class="two"><label>Date<input id="a-date" type="date" value="${TODAY}"></label>
+      <label>Linked objective<select id="a-obj"><option value="">None</option>${OBJ.map(o=>`<option value="${o.id}">O${o.n}. ${esc(o.title)}</option>`).join("")}</select></label></div>
+      <label>Outcome or impact<textarea id="a-out" rows="2" placeholder="What changed because of it"></textarea></label>
+      <div class="row"><span class="spacer"></span><button class="btn" data-act="ach-cancel">Cancel</button><button class="btn primary" data-act="ach-save">Save achievement</button></div>
+    </div>`:`<div class="row" style="margin-bottom:14px"><span class="hint">Wins worth remembering at review time.</span><span class="spacer"></span><button class="btn primary small" data-act="ach-add">Add achievement</button></div>`):""}
+  ${list.length ? list.map(a=>`<div class="ach"><div class="row" style="gap:8px"><span class="t">${esc(a.title)}</span><span class="spacer"></span>${edit?`<button class="btn small danger" data-act="ach-del" data-id="${a.id}">Delete</button>`:""}</div>
+      <div class="m">${a.date}${a.obj?`. Linked to O${OBJ_OF(a.obj).n}`:""}</div>${a.outcome?`<p>${esc(a.outcome)}</p>`:""}</div>`).join("")
+    : `<div class="empty">No achievements logged yet.</div>`}`;
+}
+function reviewHtml(p){
+  const per = S.period || DEFAULT_PERIOD;
+  const key = `${p.id}|${pKey(per)}`, rec = S.reviews[key] || {values:{}, comp:{}, released:false};
+  const frozen = !!S.frozen[pKey(per)], admin = isAdmin(), mine = S.me===p.id;
+  const editSelf = !frozen && (admin || (mine && !rec.released));
+  const editMgr = !frozen && admin;
+  const seeMgr = admin || rec.released || frozen;
+  const sum = k => { const v = COMPETENCIES.map(c=>rec.comp[c.id]?.[k]).filter(Number.isFinite); return v.length ? (v.reduce((a,b)=>a+b,0)/v.length).toFixed(1) : "-"; };
+  const sel = (id, k, v, dis) => `<select data-act="rv-score" data-c="${id}" data-k="${k}" ${dis?"disabled":""} aria-label="Score"><option value="">Not graded</option>${SCALE.map(([n,l])=>`<option value="${n}" ${v===n?"selected":""}>${n}. ${l}</option>`).join("")}</select>`;
+  return `
+  <div class="rvbar">
+    <select id="rv-period" aria-label="Review period">${PERIODS.map(x=>`<option value="${pKey(x)}" ${pKey(x)===pKey(per)?"selected":""}>${pLabel(x)}</option>`).join("")}</select>
+    ${frozen?`<span class="flag frz">Frozen</span>`:""}
+    ${rec.released?`<span class="flag rel">Released to ${esc(first(p.name))}</span>`:`<span class="flag">Manager side not released</span>`}
+    <span class="spacer"></span>
+    ${editMgr?`<button class="btn small" data-act="rv-release">${rec.released?"Unrelease":"Release to employee"}</button>`:""}
+    ${admin?`<button class="btn small dark" data-act="rv-freeze">${frozen?"Unfreeze period":"Freeze period for everyone"}</button>`:""}
+  </div>
+  ${frozen?`<div class="note info" style="margin:-4px 0 14px">This period is frozen. Every review in it is read only, and a snapshot of all goals was saved for Reports.</div>`:""}
+  ${!frozen && mine && !admin && rec.released?`<div class="note info" style="margin:-4px 0 14px">Your manager has released this review, so your part is now locked.</div>`:""}
+  <div class="rvsec${editSelf?"":" locked"}"><h3>Our values</h3><p class="hint" style="margin-top:0">An open reflection, not graded.</p>
+    ${VALUES.map(v=>`<div class="val"><b>${v.name}</b><div class="q">${v.q}</div><textarea data-act="rv-value" data-c="${v.id}" ${editSelf?"":"disabled"} aria-label="${v.name}">${esc(rec.values[v.id]||"")}</textarea></div>`).join("")}
+  </div>
+  <div class="rvsec"><h3>Competencies</h3>
+    <div class="scores"><span>Self assessment <b>${sum("sa")}</b></span>${seeMgr?`<span>Manager assessment <b>${sum("ma")}</b></span>`:""}<span class="hint">Average on a scale of 1 to 5</span></div>
+    <div style="margin-top:12px">${COMPETENCIES.map(c=>{ const r = rec.comp[c.id] || {}; return `<div class="comp"><div class="t">${c.name}</div><div class="d">${c.d}</div>
+      <div class="cols"><div class="${editSelf?"":"locked"}"><label>Self assessment</label>${sel(c.id,"sa",r.sa,!editSelf)}<textarea data-act="rv-text" data-c="${c.id}" data-k="et" ${editSelf?"":"disabled"} placeholder="Examples" aria-label="Self comments">${esc(r.et||"")}</textarea></div>
+      ${seeMgr?`<div class="${editMgr?"":"locked"}"><label>Manager assessment</label>${sel(c.id,"ma",r.ma,!editMgr)}<textarea data-act="rv-text" data-c="${c.id}" data-k="mt" ${editMgr?"":"disabled"} placeholder="Manager comments" aria-label="Manager comments">${esc(r.mt||"")}</textarea></div>`:`<div><label>Manager assessment</label><p class="hint" style="margin:0">Visible once released.</p></div>`}</div></div>`;}).join("")}</div>
+  </div>
+  ${(editSelf||editMgr)?`<div class="row"><span class="hint">${rec.updated?`Last saved ${rec.updated}`:"Not saved yet"}</span><span class="spacer"></span><button class="btn primary" data-act="rv-save">Save review</button></div>`:""}`;
+}
+
+/* Reports */
+const TEMPLATES = [
+  ["company","Company snapshot","Every objective with progress, target and status. Furthest behind first."],
+  ["dept","Department snapshot","One department's KPIs and members."],
+  ["under","Items needing attention","Key results and KPIs that are at risk or behind."],
+  ["quarterly","Summary by category","Health of Operational, Strategic and Tactical goals."],
+  ["review","Person report","One person's KPIs, achievements and latest review scores."],
+  ["frozen","Frozen snapshots","The goal status saved when a review period was frozen."]
+];
+function reportTable(){
+  const r = S.report; if(!r) return null;
+  if(r==="company"){
+    const rows = OBJ.map(o=>{ const p=objProgress(o), e=objExpected(o); return [`O${o.n}`, o.title, o.cat, qLabel(o.q), P(o.owner).name, p, e, e-p, HEALTH[health(p,e)].label]; }).sort((a,b)=>b[7]-a[7]);
+    return {title:"Company snapshot", head:["#","Objective","Category","Due","Owner","Progress %","Target %","Gap","Status"], rows};
+  }
+  if(r==="dept"){
+    const d = DEPT(S.rDept);
+    const rows = deptKpis(d.id).map(k=>{ const t=kpiTotal(k), e=expected(k.q); return [k.num, k.title, P(k.owner).name, qLabel(k.q), t, e, HEALTH[health(t,e)].label]; });
+    return {title:`Department snapshot: ${d.name}`, head:["KPI","Title","Owner","Due","Progress %","Target %","Status"], rows, pick:"dept"};
+  }
+  if(r==="under"){
+    const rows = [];
+    OBJ.forEach(o=>o.krs.forEach(kr=>{ const p=krProgress(kr), e=expected(kr.q); if(health(p,e)!=="ok") rows.push(["Key result", kr.n, kr.title, P(o.owner).name, p, e, e-p, HEALTH[health(p,e)].label]); }));
+    S.kpis.forEach(k=>{ const t=kpiTotal(k), e=expected(k.q); if(health(t,e)!=="ok") rows.push(["KPI", k.num, k.title, P(k.owner).name, t, e, e-t, HEALTH[health(t,e)].label]); });
+    rows.sort((a,b)=>b[6]-a[6]);
+    return {title:"Items needing attention", head:["Level","#","Title","Owner","Progress %","Target %","Gap","Status"], rows};
+  }
+  if(r==="quarterly"){
+    const rows = ["Operational","Strategic","Tactical"].map(c=>{ const os = OBJ.filter(o=>o.cat===c); const p = avg(os.map(objProgress)), e = avg(os.map(objExpected));
+      return [c, os.length, p, e, os.filter(o=>health(objProgress(o),objExpected(o))==="ok").length, os.filter(o=>health(objProgress(o),objExpected(o))!=="ok").length, HEALTH[health(p,e)].label]; });
+    return {title:`Summary by category, Q${CUR_Q} ${CY}`, head:["Category","Objectives","Progress %","Target %","On track","Needs attention","Status"], rows};
+  }
+  if(r==="review"){
+    const p = P(S.rEmp), rows = [];
+    personKpis(p.id).forEach(k=>{ const v=k.prog[p.id]??0, e=expected(k.q); rows.push(["KPI", `${k.num} ${k.title}`, k.owner===p.id?"Owner":"Contributor", v, e, HEALTH[health(v,e)].label]); });
+    S.achievements.filter(a=>a.emp===p.id).forEach(a=>rows.push(["Achievement", a.title, a.date, "", "", a.outcome||""]));
+    const last = PERIODS.slice().reverse().map(x=>S.reviews[`${p.id}|${pKey(x)}`] ? [x, S.reviews[`${p.id}|${pKey(x)}`]] : null).find(Boolean);
+    if(last){ const [x,rv] = last; COMPETENCIES.forEach(c=>rows.push([`Review ${pLabel(x)}`, c.name, "Self "+(rv.comp[c.id]?.sa ?? "-"), "Manager "+(rv.comp[c.id]?.ma ?? "-"), "", ""])); }
+    return {title:`Person report: ${p.name}`, head:["Type","Item","Role or date","Progress %","Target %","Status or notes"], rows, pick:"emp"};
+  }
+  if(r==="frozen"){
+    const rows = [];
+    Object.values(S.frozen).forEach(f => f.rows.forEach(x => rows.push([f.label, f.at, ...x])));
+    return {title:"Frozen snapshots", head:["Period","Frozen on","Level","#","Title","Progress %","Target %"], rows, frozen:true};
+  }
+}
+function viewReports(){
+  const t = reportTable();
+  return `
+  <div class="page-head"><h1>Reports</h1><p class="sub" style="margin:0">Ready-made reports from live data. Download as CSV for Excel, or print to PDF.</p></div>
+  <div class="tgrid">${TEMPLATES.map(([k,l,d])=>`<button class="tcard" data-act="report" data-k="${k}" aria-pressed="${S.report===k}"><b>${l}</b><span>${d}</span></button>`).join("")}</div>
+  ${t?`<section class="panel">
+    <div class="row noprint" style="margin-bottom:12px"><h2 style="margin:0">${esc(t.title)}</h2><span class="spacer"></span>
+      ${t.pick==="dept"?`<select id="r-dept" aria-label="Department" style="border:1px solid var(--line);border-radius:8px;padding:6px 10px;background:var(--surface)">${DEPTS.map(d=>`<option value="${d.id}" ${S.rDept===d.id?"selected":""}>${d.name}</option>`).join("")}</select>`:""}
+      ${t.pick==="emp"?`<select id="r-emp" aria-label="Person" style="border:1px solid var(--line);border-radius:8px;padding:6px 10px;background:var(--surface)">${PEOPLE.map(p=>`<option value="${p.id}" ${S.rEmp===p.id?"selected":""}>${esc(p.name)}</option>`).join("")}</select>`:""}
+      <button class="btn small" data-act="csv">Download CSV</button>${t.frozen&&Object.keys(S.frozen).length?`<button class="btn small" data-act="json">Download JSON</button>`:""}<button class="btn small" data-act="print">Print or save as PDF</button>
+    </div>
+    <p class="hint noprint" style="margin-top:-6px">${esc(CONFIG.company)}. Generated ${stamp()}.</p>
+    ${t.rows.length?`<div class="tbl-scroll"><table class="tbl"><thead><tr>${t.head.map(h=>`<th class="${/%|Gap|Objectives|On track|Needs/.test(h)?"num":""}">${h}</th>`).join("")}</tr></thead>
+      <tbody>${t.rows.map(r=>`<tr>${r.map((v,i)=>`<td class="${/%|Gap|Objectives|On track|Needs/.test(t.head[i])?"num":""}">${esc(v)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`
+      : `<div class="empty">${t.frozen?"No period has been frozen yet. Open a person's performance review and click \"Freeze period for everyone\".":"Nothing to show. Everything is on track."}</div>`}
+  </section>`:`<section class="panel"><div class="empty">Pick a report above.</div></section>`}`;
+}
+
+/* ---------- Actions ---------- */
+function toast(t){ document.querySelectorAll(".toast").forEach(x=>x.remove()); const el=document.createElement("div"); el.className="toast"; el.setAttribute("role","status"); el.textContent=t; document.body.appendChild(el); setTimeout(()=>el.remove(),2600); }
+function download(name, type, text){ const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text],{type})); a.download = name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 500); }
+const csvOf = t => [t.head, ...t.rows].map(r => r.map(v => `"${String(v ?? "").replace(/"/g,'""')}"`).join(",")).join("\r\n");
+const draftKey = () => { const per = S.period || DEFAULT_PERIOD; return [`${S.person}|${pKey(per)}`, per]; };
+function draftRec(){ const [k] = draftKey(); if(!S.reviews[k]) S.reviews[k] = {values:{}, comp:{}, released:false}; return S.reviews[k]; }
+function snapshotRows(){
+  const rows = [];
+  OBJ.forEach(o=>{ rows.push(["Objective", `O${o.n}`, o.title, objProgress(o), objExpected(o)]); o.krs.forEach(kr=>rows.push(["Key result", kr.n, kr.title, krProgress(kr), expected(kr.q)])); });
+  DEPTS.forEach(d=>{ const s = deptStats(d.id); rows.push(["Department", "", d.name, s.p, s.e]); });
+  PEOPLE.forEach(p=>{ const s = personStats(p.id); if(s) rows.push(["Person", "", p.name, s.p, s.e]); });
+  return rows;
+}
+
+document.addEventListener("click", e => {
+  const el = e.target.closest("[data-act]"); if(!el) return;
+  const act = el.dataset.act, k = el.dataset.k;
+  switch(act){
+    case "tab": S.tab = k; render(); window.scrollTo(0,0); break;
+    case "go-dept": S.tab = "depts"; S.dept = k; render(); window.scrollTo(0,0); break;
+    case "go-obj": S.tab = "company"; S.cat = ""; S.open.add(k); render(); document.getElementById("card-"+k)?.scrollIntoView({block:"start"}); window.scrollBy(0,-90); break;
+    case "go-person": S.tab = "people"; S.person = k; S.ptab = "kpis"; S.adding = false; render(); window.scrollTo(0,0); break;
+    case "person": S.person = k; S.adding = false; render(); break;
+    case "toggle": S.open.has(k) ? S.open.delete(k) : S.open.add(k); S.keepScroll = true; render(); break;
+    case "expand-all": OBJ.forEach(o=>S.open.add(o.id)); S.keepScroll = true; render(); break;
+    case "collapse-all": S.open.clear(); S.keepScroll = true; render(); break;
+    case "cat": S.cat = k; render(); break;
+    case "dept": S.dept = k; render(); break;
+    case "ptab": S.ptab = k; S.adding = false; S.keepScroll = true; render(); break;
+    case "ach-add": S.adding = true; S.keepScroll = true; render(); document.getElementById("a-title")?.focus(); break;
+    case "ach-cancel": S.adding = false; S.keepScroll = true; render(); break;
+    case "ach-save": {
+      const title = document.getElementById("a-title").value.trim(); if(!title){ document.getElementById("a-title").focus(); toast("Add a short title first"); return; }
+      S.achievements.push({id:S.nextAch++, emp:S.person, title, date:document.getElementById("a-date").value || TODAY, outcome:document.getElementById("a-out").value.trim(), obj:document.getElementById("a-obj").value || null});
+      S.adding = false; S.keepScroll = true; render(); toast("Achievement saved"); break;
+    }
+    case "ach-del": S.achievements = S.achievements.filter(a => a.id!==+el.dataset.id); S.keepScroll = true; render(); toast("Achievement deleted"); break;
+    case "rv-save": { const r = draftRec(); r.updated = stamp(); r.reviewer = ME().name; S.keepScroll = true; render(); toast("Review saved"); break; }
+    case "rv-release": { const r = draftRec(); r.released = !r.released; r.updated = stamp(); S.keepScroll = true; render(); toast(r.released ? `Released to ${first(P(S.person).name)}` : "Release withdrawn"); break; }
+    case "rv-freeze": {
+      const [, per] = draftKey(), pk = pKey(per);
+      if(S.frozen[pk]){ if(!confirm(`Unfreeze ${pLabel(per)}? Reviews in this period become editable again and the saved snapshot is removed.`)) return; delete S.frozen[pk]; toast(`${pLabel(per)} unfrozen`); }
+      else { if(!confirm(`Freeze ${pLabel(per)} for the whole company? Every review in this period becomes read only, and a snapshot of all goals is saved.`)) return; S.frozen[pk] = {label:pLabel(per), at:stamp(), rows:snapshotRows()}; toast(`${pLabel(per)} frozen. Snapshot saved to Reports.`); }
+      S.keepScroll = true; render(); break;
+    }
+    case "report": S.report = k; render(); break;
+    case "csv": { const t = reportTable(); download(`${CONFIG.company.replace(/\W+/g,"")}_${t.title.replace(/\W+/g,"_")}_${TODAY}.csv`, "text/csv", "\ufeff"+csvOf(t)); toast("CSV downloaded"); break; }
+    case "json": download(`${CONFIG.company.replace(/\W+/g,"")}_frozen_snapshots_${TODAY}.json`, "application/json", JSON.stringify(S.frozen, null, 2)); toast("JSON downloaded"); break;
+    case "print": window.print(); break;
+  }
+});
+document.addEventListener("input", e => {
+  const el = e.target;
+  if(el.dataset.act==="slot"){ const lab = document.getElementById(`v-${el.dataset.id}-${el.dataset.emp}`); if(lab) lab.textContent = el.value+"%"; return; }
+  if(el.dataset.act==="rv-value"){ draftRec().values[el.dataset.c] = el.value; return; }
+  if(el.dataset.act==="rv-text"){ const r = draftRec(); r.comp[el.dataset.c] = {...(r.comp[el.dataset.c]||{}), [el.dataset.k]: el.value}; return; }
+});
+document.addEventListener("change", e => {
+  const el = e.target;
+  if(el.dataset.act==="persona"){ S.me = el.value; S.adding = false; if(S.tab==="people" && !isAdmin()) S.person = S.me; render(); toast(`Signed in as ${ME().name}`); return; }
+  if(el.dataset.act==="slot"){ const k = K(el.dataset.id); k.prog[el.dataset.emp] = +el.value; S.keepScroll = true; render(); toast(`${k.num} updated to ${el.value}%. Totals recalculated.`); return; }
+  if(el.dataset.act==="rv-score"){ const r = draftRec(); r.comp[el.dataset.c] = {...(r.comp[el.dataset.c]||{}), [el.dataset.k]: el.value===""?null:+el.value}; S.keepScroll = true; render(); return; }
+  if(el.id==="p-sel"){ S.person = el.value; S.adding = false; render(); return; }
+  if(el.id==="rv-period"){ S.period = PERIODS.find(x=>pKey(x)===el.value); S.keepScroll = true; render(); return; }
+  if(el.id==="r-dept"){ S.rDept = el.value; render(); return; }
+  if(el.id==="r-emp"){ S.rEmp = el.value; render(); return; }
+});
+
+render();
+</script>
+</body>
+</html>
