@@ -289,11 +289,335 @@ footer a{color:var(--ink);text-decoration-color:var(--orange);text-decoration-th
   .made{flex-wrap:wrap}
   .made .tag2{flex-basis:100%}
 }
+
+/* Language switch */
+.lang{display:inline-flex;border:1px solid #5A5370;border-radius:999px;overflow:hidden;flex:none}
+.lang button{background:transparent;border:0;color:#CFC8D8;padding:3px 10px;font-size:12px;font-weight:600;cursor:pointer;line-height:1.4}
+.lang button[aria-pressed="true"]{background:var(--orange);color:var(--ink-c)}
 </style>
 </head>
 <body>
 <div id="app"></div>
 
+<script>
+/* ============================================================
+   Language switch (English / Russian).
+   The app renders in English. In Russian mode every text, label
+   and message is translated on screen as it appears.
+   Add or fix translations in I18N_EXACT and I18N_RULES below.
+   ============================================================ */
+const I18N = (() => {
+  const KEY = "demo-lang";
+  let lang = "en";
+  try { lang = new URLSearchParams(location.search).get("lang") || localStorage.getItem(KEY) || "en"; } catch(e) {}
+  if(lang !== "ru") lang = "en";
+  let EX = {}, RULES = [];
+
+  // Russian plural: pl(5, ["день","дня","дней"]) -> "дней". Fractions take the second form.
+  const pl = (n, f) => { n = Math.abs(+n); if(!Number.isInteger(n)) return f[1];
+    const a = n % 10, b = n % 100; return a===1 && b!==11 ? f[0] : (a>=2 && a<=4 && (b<10 || b>=20)) ? f[1] : f[2]; };
+  const DAYS = s => { s = String(s).trim();
+    if(s === "half a day") return "полдня";
+    const m = s.match(/^(\d+(?:\.\d+)?) days?$/); return m ? `${m[1]} ${pl(+m[1], ["день","дня","дней"])}` : s; };
+  const RG = s => String(s)
+    .replace(/^(\d{4}-\d{2}-\d{2}) to (\d{4}-\d{2}-\d{2})$/, "с $1 по $2")
+    .replace(/^(\d{4}-\d{2}-\d{2}), morning$/, "$1, утро")
+    .replace(/^(\d{4}-\d{2}-\d{2}), afternoon$/, "$1, после обеда");
+
+  const core = s => {
+    if(Object.prototype.hasOwnProperty.call(EX, s)) return EX[s];
+    for(const [re, fn] of RULES){ const m = s.match(re); if(m){ const r = typeof fn === "function" ? fn(m) : fn; if(r != null) return r; } }
+    return null;
+  };
+  // Translate a piece inside a rule. Returns the input unchanged when there is no translation.
+  const T = s => { if(s == null) return s; const k = String(s).replace(/\s+/g, " ").trim(); const r = core(k); return r == null ? String(s) : r; };
+  // Translate a full text, keeping its leading and trailing spaces.
+  const tr = s => {
+    if(lang !== "ru" || s == null) return s;
+    const str = String(s), m = str.match(/^(\s*)([\s\S]*?)(\s*)$/), k = m[2].replace(/\s+/g, " ");
+    if(!k) return str; const r = core(k); return r == null ? str : m[1] + r + m[3];
+  };
+
+  const ATTRS = ["placeholder", "aria-label", "title"];
+  const doNode = n => {
+    if(n.nodeType === 3){
+      const p = n.parentNode; if(!p || /^(SCRIPT|STYLE)$/.test(p.nodeName) || (p.closest && p.closest("[data-notr]"))) return;
+      const v = tr(n.data); if(v !== n.data) n.data = v;
+    } else if(n.nodeType === 1){
+      if(n.closest("[data-notr]")) return;
+      for(const a of ATTRS){ const v = n.getAttribute(a); if(v){ const t = tr(v); if(t !== v) n.setAttribute(a, t); } }
+    }
+  };
+  const walk = root => {
+    if(lang !== "ru" || !root) return;
+    if(root.nodeType === 3){ doNode(root); return; }
+    if(root.nodeType !== 1) return;
+    doNode(root); const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+    while(w.nextNode()) doNode(w.currentNode);
+  };
+  const obs = new MutationObserver(ms => { if(lang !== "ru") return; for(const m of ms){
+    if(m.type === "characterData" || m.type === "attributes") doNode(m.target); else m.addedNodes.forEach(walk); } });
+
+  const nativeConfirm = window.confirm.bind(window);
+  window.confirm = msg => nativeConfirm(tr(msg));
+
+  let baseTitle = document.title;
+  const apply = () => { document.documentElement.lang = lang; document.title = tr(baseTitle); };
+  const start = () => { baseTitle = document.title; apply();
+    obs.observe(document.body, {subtree:true, childList:true, characterData:true, attributes:true, attributeFilter:ATTRS}); walk(document.body); };
+  const set = l => { lang = l === "ru" ? "ru" : "en"; try { localStorage.setItem(KEY, lang); } catch(e) {} apply();
+    if(typeof window.render === "function") window.render(); walk(document.body); };
+
+  // Language buttons for the header
+  const toggle = () => `<span class="lang" data-notr role="group" aria-label="Language"><button type="button" data-lang="en" aria-pressed="${lang==="en"}" title="English">EN</button><button type="button" data-lang="ru" aria-pressed="${lang==="ru"}" title="Русский">RU</button></span>`;
+  document.addEventListener("click", e => { const b = e.target.closest("[data-lang]"); if(b){ e.stopPropagation(); set(b.dataset.lang); } }, true);
+
+  return { get lang(){ return lang; }, tr, T, pl, DAYS, RG, toggle, start, set,
+    add(ex, rules){ for(const k in (ex || {})) if(!(k in EX)) EX[k] = ex[k]; RULES = RULES.concat(rules || []); } };
+})();
+const tr = I18N.tr;
+
+/* Russian texts for KPIboard */
+(() => {
+const {T, pl} = I18N;
+const H = {"On track":"По плану","At risk":"Под угрозой","Behind":"Отстаёт"};
+const CAT = {"Operational":"Операционные","Strategic":"Стратегические","Tactical":"Тактические"};
+const TXT = {
+  // objectives
+  "Launch the first commercial product release":"Выпустить первый коммерческий релиз продукта",
+  "Validate the core science with partner labs":"Подтвердить ключевую науку с лабораториями-партнёрами",
+  "Grow revenue from new customers":"Увеличить выручку от новых клиентов",
+  "Build scalable people and HR systems":"Построить масштабируемые HR-процессы",
+  "Put finance and compliance foundations in place":"Заложить основу финансов и комплаенса",
+  "Improve lab throughput":"Повысить пропускную способность лаборатории",
+  // key results
+  "Ship version 1.0 to the first three customers":"Поставить версию 1.0 первым трём клиентам",
+  "Reach 99.5% uptime in the pilot":"Достичь 99,5% доступности в пилоте",
+  "Publish results from two partner studies":"Опубликовать результаты двух партнёрских исследований",
+  "Sign one new academic partnership":"Подписать одно новое академическое партнёрство",
+  "Build a qualified pipeline of 40 opportunities":"Собрать квалифицированную воронку из 40 возможностей",
+  "Close three paid pilots":"Закрыть три платных пилота",
+  "Hire eight people for open roles":"Нанять восемь человек на открытые позиции",
+  "Run quarterly performance reviews":"Проводить ежеквартальные оценки",
+  "Close the books within 10 days each month":"Закрывать месяц в течение 10 дней",
+  "Pass the first external audit":"Пройти первый внешний аудит",
+  "Cut sample turnaround time by 30%":"Сократить время обработки образцов на 30%",
+  "Keep equipment downtime under 5%":"Держать простой оборудования ниже 5%",
+  // KPIs
+  "Fix all critical beta feedback":"Исправить все критичные замечания бета-тестеров",
+  "Pass the release security review":"Пройти проверку безопасности релиза",
+  "Complete hardware validation":"Завершить валидацию оборудования",
+  "Set up monitoring and alerting":"Настроить мониторинг и оповещения",
+  "Run two failover drills":"Провести два учения по отказоустойчивости",
+  "Complete study A data collection":"Завершить сбор данных для исследования A",
+  "Draft the study A paper":"Подготовить черновик статьи по исследованию A",
+  "Shortlist and contact five labs":"Отобрать пять лабораторий и связаться с ними",
+  "Agree terms with one lab":"Согласовать условия с одной лабораторией",
+  "Attend four industry events":"Посетить четыре отраслевых мероприятия",
+  "Book 40 discovery calls":"Провести 40 ознакомительных звонков",
+  "Send six pilot proposals":"Отправить шесть предложений о пилоте",
+  "Publish two customer case studies":"Опубликовать два кейса клиентов",
+  "Launch a careers page and hiring tracker":"Запустить карьерную страницу и трекер найма",
+  "Run structured interviews for every role":"Проводить структурированные интервью на все позиции",
+  "Roll out the review template":"Внедрить шаблон оценки",
+  "Complete reviews for all staff":"Провести оценку всех сотрудников",
+  "Introduce a month-end checklist":"Ввести чек-лист закрытия месяца",
+  "Automate bank reconciliation":"Автоматизировать банковскую сверку",
+  "Prepare the audit file":"Подготовить пакет для аудита",
+  "Document internal controls":"Описать внутренние контроли",
+  "Standardise sample intake":"Стандартизировать приём образцов",
+  "Automate plate reading":"Автоматизировать считывание планшетов",
+  "Run a preventive maintenance schedule":"Ввести график профилактического обслуживания",
+  // achievements and review seeds
+  "Cut build time from 14 to 6 minutes":"Сократил время сборки с 14 до 6 минут",
+  "Faster releases for the whole team.":"Быстрее релизы для всей команды.",
+  "Launched the careers page and hiring tracker":"Запустила карьерную страницу и трекер найма",
+  "All applications now in one place. Time to first reply down to 3 days.":"Все заявки теперь в одном месте. Время до первого ответа снизилось до 3 дней.",
+  "First full dataset for study A":"Первый полный набор данных для исследования A",
+  "Two weeks ahead of the plan agreed with the partner lab.":"На две недели раньше плана, согласованного с лабораторией-партнёром.",
+  "Month-end close in 9 days":"Закрытие месяца за 9 дней",
+  "First month under the 10-day target.":"Первый месяц быстрее цели в 10 дней.",
+  "Signed the first paid pilot":"Подписала первый платный пилот",
+  "Pilot with a regional hospital group, 3 months.":"Пилот с региональной сетью больниц, 3 месяца.",
+  "New sample intake form":"Новая форма приёма образцов",
+  "Intake errors dropped from 6% to under 1%.":"Ошибки при приёме снизились с 6% до менее 1%.",
+  "Security review passed with no critical findings":"Проверка безопасности пройдена без критичных замечаний",
+  "Release 1.0 cleared to ship.":"Релиз 1.0 допущен к выпуску.",
+  "Took over the release checklist and kept it current.":"Взял на себя чек-лист релиза и поддерживал его в актуальном состоянии.",
+  "Merged two weekly meetings into one.":"Объединил две еженедельные встречи в одну.",
+  "Delivered my main KPIs; one slipped by two weeks.":"Выполнил основные KPI, один сдвинулся на две недели.",
+  "Strong delivery. Flag slips earlier next quarter.":"Сильный результат. В следующем квартале сообщай о сдвигах раньше."
+};
+const tx = s => TXT[s] || s;
+const KR = {"Key result":"Ключевой результат","Objective":"Цель","KPI":"KPI","Department":"Отдел","Person":"Сотрудник"};
+
+I18N.add({
+  ...TXT, ...H, ...CAT,
+  "Overview":"Обзор", "Company OKRs":"OKR компании", "Departments":"Отделы", "People":"Сотрудники", "Reports":"Отчёты",
+  "OKRs":"OKR", "Teams":"Отделы",
+  "Company objectives":"Цели компании", "Team":"Команда", "All":"Все",
+  "Expand all":"Развернуть все", "Collapse all":"Свернуть все",
+  "Objectives break down into key results, and key results into KPIs owned by people. Progress rolls up automatically.":"Цели делятся на ключевые результаты, а ключевые результаты на KPI с ответственными. Прогресс суммируется автоматически.",
+  "Each department's progress is the average of the KPIs its people own.":"Прогресс отдела равен среднему по KPI его сотрудников.",
+  "KPIs by company objective":"KPI по целям компании", "Members":"Сотрудники",
+  "Everyone's KPIs, achievements and performance reviews in one place.":"KPI, достижения и оценки каждого сотрудника в одном месте.",
+  "Person":"Сотрудник", "KPIs":"KPI", "Achievements":"Достижения", "Performance review":"Оценка эффективности",
+  "Owner":"Ответственный", "Contributor":"Участник",
+  "Move a slider to update progress. The KPI total is the average of everyone working on it.":"Передвиньте ползунок, чтобы обновить прогресс. Итог по KPI равен среднему по всем участникам.",
+  "Read only. People update their own progress, and admins can update anyone's.":"Только просмотр. Сотрудники обновляют свой прогресс, администраторы могут обновить любой.",
+  "No KPIs assigned yet.":"KPI пока не назначены.",
+  "Wins worth remembering at review time.":"Победы, о которых стоит вспомнить при оценке.",
+  "Add achievement":"Добавить достижение", "What was achieved":"Что достигнуто",
+  "For example: shipped the new onboarding flow":"Например: запустили новый онбординг",
+  "Date":"Дата", "Linked objective":"Связанная цель", "None":"Нет", "Outcome or impact":"Результат или эффект",
+  "What changed because of it":"Что изменилось благодаря этому", "Save achievement":"Сохранить достижение", "Delete":"Удалить",
+  "No achievements logged yet.":"Достижений пока нет.",
+  "Review period":"Период оценки", "Frozen":"Заморожено", "Manager side not released":"Оценка руководителя не опубликована",
+  "Release to employee":"Опубликовать сотруднику", "Unrelease":"Отменить публикацию",
+  "Freeze period for everyone":"Заморозить период для всех", "Unfreeze period":"Разморозить период",
+  "This period is frozen. Every review in it is read only, and a snapshot of all goals was saved for Reports.":"Период заморожен. Все оценки в нём доступны только для чтения, а снимок всех целей сохранён в отчётах.",
+  "Your manager has released this review, so your part is now locked.":"Руководитель опубликовал эту оценку, поэтому ваша часть теперь закрыта для изменений.",
+  "Our values":"Наши ценности", "An open reflection, not graded.":"Свободные размышления, без баллов.",
+  "Customer first":"Клиент прежде всего", "Act with integrity":"Честность", "Own it":"Ответственность", "Keep it simple":"Простота",
+  "Where did you put a customer's needs first this quarter?":"Когда в этом квартале вы поставили потребности клиента на первое место?",
+  "When did you raise a concern or admit a mistake early, and what happened?":"Когда вы вовремя подняли проблему или признали ошибку, и что было дальше?",
+  "What did you take full ownership of, start to finish?":"За что вы полностью отвечали от начала до конца?",
+  "What did you simplify for yourself or for the team?":"Что вы упростили для себя или для команды?",
+  "Competencies":"Компетенции", "Self assessment":"Самооценка", "Manager assessment":"Оценка руководителя",
+  "Average on a scale of 1 to 5":"Среднее по шкале от 1 до 5",
+  "Communication":"Коммуникация", "Collaboration":"Сотрудничество", "Ownership of results":"Ответственность за результат",
+  "Time management":"Управление временем", "Continuous improvement":"Постоянное развитие", "Living our values":"Следование ценностям",
+  "Keeps stakeholders informed and responds within one working day.":"Держит заинтересованных людей в курсе и отвечает в течение рабочего дня.",
+  "Works well across teams and helps others succeed.":"Хорошо работает с другими командами и помогает коллегам добиваться успеха.",
+  "Delivers agreed goals and flags risks early.":"Выполняет согласованные цели и заранее сообщает о рисках.",
+  "Prioritises well and meets deadlines.":"Правильно расставляет приоритеты и соблюдает сроки.",
+  "Learns new skills and improves how work gets done.":"Осваивает новые навыки и улучшает рабочие процессы.",
+  "Applies company values in day-to-day work.":"Применяет ценности компании в ежедневной работе.",
+  "Not graded":"Без оценки", "Score":"Балл", "Examples":"Примеры", "Self comments":"Комментарий сотрудника",
+  "Manager comments":"Комментарий руководителя", "Visible once released.":"Будет видно после публикации.",
+  "Severely underperformed":"Значительно ниже ожиданий", "Underperformed":"Ниже ожиданий", "Satisfactory":"Удовлетворительно",
+  "Met expectations":"Соответствует ожиданиям", "Excelled beyond expectations":"Значительно превзошёл ожидания",
+  "Not saved yet":"Ещё не сохранено", "Save review":"Сохранить оценку",
+  "Review saved":"Оценка сохранена", "Release withdrawn":"Публикация отменена",
+  "Achievement saved":"Достижение сохранено", "Achievement deleted":"Достижение удалено", "Add a short title first":"Сначала добавьте короткое название",
+  "Ready-made reports from live data. Download as CSV for Excel, or print to PDF.":"Готовые отчёты по актуальным данным. Скачайте CSV для Excel или распечатайте в PDF.",
+  "Company snapshot":"Срез по компании", "Department snapshot":"Срез по отделу", "Items needing attention":"Требуют внимания",
+  "Summary by category":"Сводка по категориям", "Person report":"Отчёт по сотруднику", "Frozen snapshots":"Замороженные срезы",
+  "Every objective with progress, target and status. Furthest behind first.":"Все цели с прогрессом, плановым значением и статусом. Сначала самые отстающие.",
+  "One department's KPIs and members.":"KPI и сотрудники одного отдела.",
+  "Key results and KPIs that are at risk or behind.":"Ключевые результаты и KPI под угрозой или с отставанием.",
+  "Health of Operational, Strategic and Tactical goals.":"Состояние операционных, стратегических и тактических целей.",
+  "One person's KPIs, achievements and latest review scores.":"KPI, достижения и последние баллы оценки одного сотрудника.",
+  "The goal status saved when a review period was frozen.":"Состояние целей, сохранённое при заморозке периода оценки.",
+  "Download CSV":"Скачать CSV", "Download JSON":"Скачать JSON", "Print or save as PDF":"Печать или PDF",
+  "Pick a report above.":"Выберите отчёт выше.", "Nothing to show. Everything is on track.":"Показывать нечего. Всё идёт по плану.",
+  "No period has been frozen yet. Open a person's performance review and click \"Freeze period for everyone\".":"Ни один период ещё не заморожен. Откройте оценку сотрудника и нажмите «Заморозить период для всех».",
+  "CSV downloaded":"CSV скачан", "JSON downloaded":"JSON скачан",
+  "#":"№", "Category":"Категория", "Due":"Срок", "Progress %":"Прогресс %", "Target %":"План %", "Gap":"Отставание", "Status":"Статус",
+  "Title":"Название", "Level":"Уровень", "Objectives":"Цели", "On track ":"По плану", "Needs attention":"Требуют внимания",
+  "Type":"Тип", "Item":"Пункт", "Role or date":"Роль или дата", "Status or notes":"Статус или примечание",
+  "Frozen on":"Дата заморозки", "Period":"Период", "Objective":"Цель", "Key result":"Ключевой результат", "Achievement":"Достижение",
+  "Where it should be today":"Где должно быть сегодня", "Department":"Отдел", "Left":"Уволен(а)"
+}, [
+  [/^Q(\d) (\d{4})\. (\d+)% of the year has passed\.$/, m => `Q${m[1]} ${m[2]}. Прошло ${m[3]}% года.`],
+  [/^(\d+) on track$/, m => `${m[1]} по плану`], [/^(\d+) at risk$/, m => `${m[1]} под угрозой`], [/^(\d+) behind$/, m => `${m[1]} ${pl(+m[1], ["отстаёт","отстают","отстают"])}`],
+  [/^of (\d+) objectives$/, m => `из ${m[1]} целей`],
+  [/^Each goal is compared with where it should be today, based on its due date\. Due (Q\d \d{4}): (\d+)% by now\. Due (Q\d \d{4}): (\d+)%\. Due (Q\d \d{4}): (\d+)%\.$/,
+    m => `Каждая цель сравнивается с тем, где она должна быть сегодня с учётом срока. Срок ${m[1]}: ${m[2]}% к сегодняшнему дню. Срок ${m[3]}: ${m[4]}%. Срок ${m[5]}: ${m[6]}%.`],
+  [/^How (.+) is doing against this year's goals, measured against where each goal should be today\.$/, m => `Как ${m[1]} движется к целям года по сравнению с тем, где каждая цель должна быть сегодня.`],
+  [/^(\d+) people$/, m => `${m[1]} ${pl(+m[1], ["сотрудник","сотрудника","сотрудников"])}`],
+  [/^(\d+) people\. (\d+) KPIs\.$/, m => `${m[1]} ${pl(+m[1], ["сотрудник","сотрудника","сотрудников"])}. ${m[2]} KPI.`],
+  [/^target (\d+)%$/, m => `план ${m[1]}%`],
+  [/^(\d+)% done, target (\d+)% by now$/, m => `Выполнено ${m[1]}%, план на сегодня ${m[2]}%`],
+  [/^On track: within 10 points of target$/, "По плану: отставание не больше 10 пунктов"],
+  [/^At risk: 10 to 25 points behind$/, "Под угрозой: отставание от 10 до 25 пунктов"],
+  [/^Behind: more than 25 points$/, "Отстаёт: больше 25 пунктов"],
+  [/^Due (Q\d \d{4})\. Owner (.+)$/, m => `Срок ${m[1]}. Ответственный: ${m[2]}`],
+  [/^Due (Q\d \d{4})$/, m => `Срок ${m[1]}`],
+  [/^O(\d)\. (.+)$/, m => { const t = tx(m[2]); return t !== m[2] ? `O${m[1]}. ${t}` : null; }],
+  [/^(\d\.\d\.\d)\.? (.+)$/, m => { const t = tx(m[2]); return t !== m[2] ? `${m[1]}. ${t}` : null; }],
+  [/^KR (\d\.\d): (.+)\. O(\d)\. Due (Q\d \d{4})$/, m => `КР ${m[1]}: ${tx(m[2])}. O${m[3]}. Срок ${m[4]}`],
+  [/^Progress for (.+)$/, m => `Прогресс: ${tx(m[1])}`],
+  [/^(.+)'s progress$/, m => `Прогресс: ${m[1]}`],
+  [/^KPI total (\d+)%$/, m => `Итог по KPI ${m[1]}%`],
+  [/^(.+) \(owner\)(, .+)?$/, m => `${m[1]} (ответственный)${m[2] || ""}`],
+  [/^(.+)\. (Engineering|R&D|Commercial|Operations|Leadership)\. Started (\S+)(\. Last day (\S+))?$/, m => `${T(m[1])}. ${T(m[2])}. Начало работы ${m[3]}${m[4] ? `. Последний день ${m[5]}` : ""}`],
+  [/^(.+)\. Left (\S+)$/, m => `${T(m[1])}. Уволен(а) ${m[2]}`],
+  [/^Left on (\S+)\. Progress stays visible here but no longer counts toward company and department goals\.$/, m => `Уволен(а) ${m[1]}. Прогресс виден здесь, но больше не учитывается в целях компании и отдела.`],
+  [/^Joined on (\S+)\. Progress counts toward company and department goals from (\S+), the first full quarter\.$/, m => `Начало работы ${m[1]}. Прогресс учитывается в целях компании и отдела с ${m[2]}, первого полного квартала.`],
+  [/^(\d{4}-\d{2}-\d{2})\. Linked to O(\d)$/, m => `${m[1]}. Связано с O${m[2]}`],
+  [/^(\d)\. (Severely underperformed|Underperformed|Satisfactory|Met expectations|Excelled beyond expectations)$/, m => `${m[1]}. ${T(m[2])}`],
+  [/^Released to (.+)$/, m => `Опубликовано для: ${m[1]}`],
+  [/^Last saved (.+)$/, m => `Сохранено ${m[1]}`],
+  [/^Self (\S+)$/, m => `Сотрудник ${m[1]}`], [/^Manager (\S+)$/, m => `Руководитель ${m[1]}`],
+  [/^Q(\d) (\d{4})$/, m => `Q${m[1]} ${m[2]}`],
+  [/^(\d{4}) annual review$/, m => `Годовая оценка ${m[1]}`],
+  [/^(Q\d \d{4}|\d{4} annual review) frozen\. Snapshot saved to Reports\.$/, m => `${T(m[1])}: период заморожен. Снимок сохранён в отчётах.`],
+  [/^(Q\d \d{4}|\d{4} annual review) unfrozen$/, m => `${T(m[1])}: период разморожен`],
+  [/^Freeze (Q\d \d{4}|\d{4} annual review) for the whole company\? Every review in this period becomes read only, and a snapshot of all goals is saved\.$/, m => `Заморозить период «${T(m[1])}» для всей компании? Все оценки в нём станут доступны только для чтения, а снимок всех целей будет сохранён.`],
+  [/^Unfreeze (Q\d \d{4}|\d{4} annual review)\? Reviews in this period become editable again and the saved snapshot is removed\.$/, m => `Разморозить период «${T(m[1])}»? Оценки снова можно будет редактировать, а сохранённый снимок будет удалён.`],
+  [/^Review (Q\d \d{4}|\d{4} annual review)$/, m => `Оценка ${T(m[1])}`],
+  [/^(\d\.\d\.\d) updated to (\d+)%\. Totals recalculated\.$/, m => `${m[1]}: обновлено до ${m[2]}%. Итоги пересчитаны.`],
+  [/^(.+)\. Generated (.+)\.$/, m => `${m[1]}. Создано ${m[2]}.`],
+  [/^Department snapshot: (.+)$/, m => `Срез по отделу: ${T(m[1])}`],
+  [/^Person report: (.+)$/, m => `Отчёт по сотруднику: ${m[1]}`],
+  [/^Summary by category, (Q\d \d{4})$/, m => `Сводка по категориям, ${m[1]}`],
+  [/^Signed in as (.+)$/, m => `Вы вошли как ${m[1]}`],
+  [/^(.+), (Head of People and Operations|Engineering Lead|Software Engineer)( \(admin\))?$/, m => `${m[1]}, ${T(m[2])}${m[3] ? " (админ)" : ""}`]
+]);
+})();
+
+/* Shared Russian texts */
+(() => {
+const {T, pl} = I18N;
+const FOOT = {
+  "data in SharePoint lists, notifications through Outlook or Teams": "данные в списках SharePoint, уведомления через Outlook или Teams",
+  "candidates in a SharePoint list, emails sent from your own Outlook mailbox": "кандидаты в списке SharePoint, письма уходят из вашего ящика Outlook",
+  "goals and progress in SharePoint lists, updates sent by Outlook or Teams": "цели и прогресс в списках SharePoint, обновления через Outlook или Teams"
+};
+I18N.add({
+  "Demo with fictional data. Reload to reset.": "Демо. Данные вымышлены.",
+  "Automation and operations consulting": "Консалтинг по автоматизации и операционным процессам",
+  "Northwind Labs": "Northwind Labs",
+  "Close": "Закрыть",
+  "Cancel": "Отмена",
+  "Done": "Готово",
+  "Signed in as": "Вы вошли как",
+  "Viewing as": "Вы смотрите как",
+  "Language": "Язык",
+  "CEO": "Генеральный директор",
+  "Engineering": "Инженерия",
+  "R&D": "R&D",
+  "Commercial": "Продажи",
+  "Operations": "Операции",
+  "Leadership": "Руководство",
+  "Software Engineer": "Инженер-программист",
+  "Embedded Engineer": "Инженер встраиваемых систем",
+  "Engineering Lead": "Руководитель инженерного отдела",
+  "R&D Lead": "Руководитель R&D",
+  "Research Scientist": "Научный сотрудник",
+  "Lab Technician": "Лаборант",
+  "Business Development": "Развитие бизнеса",
+  "Business Development Manager": "Менеджер по развитию бизнеса",
+  "People and Operations": "Персонал и операции",
+  "Head of People and Operations": "Руководитель по персоналу и операциям",
+  "Finance Manager": "Финансовый менеджер",
+  "Data Engineer": "Инженер данных",
+  "Marketing Lead": "Руководитель маркетинга",
+  "Email": "Email"
+}, [
+  [/^(\S+) runs on Microsoft 365: sign-in with Microsoft accounts, (.+)\. Designed and built by (.+)\. Want software that fits the way your team works\?$/,
+    m => `${m[1]} работает на Microsoft 365: вход через учётные записи Microsoft, ${FOOT[m[2]] || m[2]}. Разработка: ${m[3] === "Natalia Stepanova" ? "Наталья Степанова" : m[3]}. Хотите систему, которая подстроена под работу вашей команды?`],
+  [/^(\S+) demo$/, m => `${m[1]}: демо`],
+  [/^Signed in as (.+)$/, m => `Вы вошли как ${m[1]}`],
+  [/^Now viewing as (.+)$/, m => `Теперь вы смотрите как ${m[1]}`],
+  [/^(.+) \(you\)$/, m => `${m[1]} (вы)`],
+  // "Name, Job title" and "Name, Job title (admin)"
+  [/^([^,]+), (.+?)( \(admin\))?$/, m => { const t = T(m[2]); return t !== m[2] ? `${m[1]}, ${t}${m[3] ? " (админ)" : ""}` : null; }]
+]);
+})();
+
+</script>
 <script>
 /* ============================================================
    Settings for the demo. Change names here.
@@ -517,6 +841,7 @@ function render(){
     <div class="brand"><span class="mark" aria-hidden="true">${"<i></i>".repeat(9)}</span>${esc(CONFIG.product)}</div>
     <span class="co">${esc(CONFIG.company)}</span>
     <span class="demo-chip">Demo with fictional data. Reload to reset.</span>
+    ${I18N.toggle()}
     <label class="persona">Signed in as
       <select data-act="persona">${["ev","hw","jk"].map(id=>{const u=P(id); return `<option value="${id}" ${id===S.me?"selected":""}>${esc(u.name)}, ${esc(u.title)}${u.admin?" (admin)":""}</option>`;}).join("")}</select>
     </label>
@@ -767,7 +1092,7 @@ function viewReports(){
 /* ---------- Actions ---------- */
 function toast(t){ document.querySelectorAll(".toast").forEach(x=>x.remove()); const el=document.createElement("div"); el.className="toast"; el.setAttribute("role","status"); el.textContent=t; document.body.appendChild(el); setTimeout(()=>el.remove(),2600); }
 function download(name, type, text){ const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text],{type})); a.download = name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 500); }
-const csvOf = t => [t.head, ...t.rows].map(r => r.map(v => `"${String(v ?? "").replace(/"/g,'""')}"`).join(",")).join("\r\n");
+const csvOf = t => [t.head, ...t.rows].map(r => r.map(v => `"${String(typeof v==="string" ? tr(v) : (v ?? "")).replace(/"/g,'""')}"`).join(",")).join("\r\n");
 const draftKey = () => { const per = S.period || DEFAULT_PERIOD; return [`${S.person}|${pKey(per)}`, per]; };
 function draftRec(){ const [k] = draftKey(); if(!S.reviews[k]) S.reviews[k] = {values:{}, comp:{}, released:false}; return S.reviews[k]; }
 function snapshotRows(){
@@ -833,6 +1158,7 @@ document.addEventListener("change", e => {
 });
 
 render();
+I18N.start();
 </script>
 </body>
 </html>
